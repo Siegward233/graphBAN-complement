@@ -118,7 +118,7 @@ class Trainer(object):
         n = F.softmax(linear_output, dim=1)[:, 1]
 
 
-    return n
+        return n
 
     def test(self, dataloader="test"):
         test_loss = 0
