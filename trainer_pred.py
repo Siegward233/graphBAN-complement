@@ -4,13 +4,24 @@ import copy
 import os
 import numpy as np
 from sklearn.metrics import roc_auc_score, average_precision_score, roc_curve, confusion_matrix, precision_recall_curve, precision_score
-from models import binary_cross_entropy, cross_entropy_logits, entropy_logits, RandomLayer
+from models import RandomLayer
 from prettytable import PrettyTable
 from domain_adaptator import ReverseLayerF
 from tqdm import tqdm
 import torch.nn.functional as F
 from sklearn.preprocessing import StandardScaler
 
+def binary_cross_entropy(pred_output,  weights):
+  loss_fct = torch.nn.BCELoss(weight=weights)
+  m = nn.Sigmoid()
+  n = torch.squeeze(m(pred_output), 1)
+#loss = loss_fct(n, labels.float())
+  return n
+
+def cross_entropy_logits(linear_output, weights=None):
+  class_output = F.log_softmax(linear_output, dim=1)
+  n = F.softmax(linear_output, dim=1)[:, 1]
+  return n
 
 class Trainer(object):
     def __init__(self, model, optim, device,test_dataloader, opt_da=None, discriminator=None,
@@ -105,20 +116,6 @@ class Trainer(object):
         entropy = ReverseLayerF.apply(entropy, self.alpha)
         entropy_w = 1.0 + torch.exp(-entropy)
         return entropy_w
-
-    def binary_cross_entropy(pred_output,  weights):
-        loss_fct = torch.nn.BCELoss(weight=weights)
-        m = nn.Sigmoid()
-        n = torch.squeeze(m(pred_output), 1)
-    #loss = loss_fct(n, labels.float())
-        return n
-
-    def cross_entropy_logits(linear_output, weights=None):
-        class_output = F.log_softmax(linear_output, dim=1)
-        n = F.softmax(linear_output, dim=1)[:, 1]
-
-
-        return n
 
     def test(self, dataloader="test"):
         test_loss = 0
