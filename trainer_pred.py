@@ -106,7 +106,19 @@ class Trainer(object):
         entropy_w = 1.0 + torch.exp(-entropy)
         return entropy_w
 
-    
+    def binary_cross_entropy(pred_output,  weights):
+        loss_fct = torch.nn.BCELoss(weight=weights)
+        m = nn.Sigmoid()
+        n = torch.squeeze(m(pred_output), 1)
+    #loss = loss_fct(n, labels.float())
+        return n
+
+    def cross_entropy_logits(linear_output, weights=None):
+        class_output = F.log_softmax(linear_output, dim=1)
+        n = F.softmax(linear_output, dim=1)[:, 1]
+
+
+    return n
 
     def test(self, dataloader="test"):
         test_loss = 0
@@ -140,7 +152,12 @@ class Trainer(object):
                 #     n, loss = cross_entropy_logits(score, labels)
                 # m = nn.Sigmoid()
                 # n = torch.squeeze(m(score), 1)
-                n = F.softmax(score, dim=1)[:, 1]
+                if self.n_class == 1:
+                   
+                    n= binary_cross_entropy(score)
+                else:
+                    n= cross_entropy_logits(score)
+                #n = F.softmax(score, dim=1)[:, 1]
                 # if i == 0:
                 #   print(n)
                 #   print(self.n_class)
