@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import argparse
 import os
+
+import copy
+
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, RobertaModel
@@ -16,7 +19,11 @@ from trainer_pred import Trainer
 # Argument parser
 parser = argparse.ArgumentParser(description="Batch prediction for multiple test files.")
 parser.add_argument("--data_dir", type=str, required=True, help="Directory containing split_zinc_*.csv files.")
-parser.add_argument("--model_path", type=str, help='Path to the .pth files')
+
+parser.add_argument("--model_1_path", type=str, help='Path to the .pth files')
+parser.add_argument("--model_2_path", type=str, help='Path to the .pth files')
+parser.add_argument("--model_3_path", type=str, help='Path to the .pth files')
+
 parser.add_argument("--trained_model_name", type=str, help='model name')
 parser.add_argument("--top_number", type=int, help='top smiles number that you want')
 parser.add_argument("--folder_path", type=str, help='Path to save result')
@@ -68,8 +75,14 @@ mkdir(args.folder_path)
 
 modelG = GraphBAN(**cfg).to(device)
 opt = torch.optim.Adam(modelG.parameters(), lr=cfg.SOLVER.LR)
-model_path = args.model_path
-modelG.load_state_dict(torch.load(model_path))
+model_paths = [args.model_1_path, args.model_2_path, args.model_3_path]
+#models = []
+
+# 加载三个模型
+#for path in model_paths:
+#    model = copy.deepcopy(modelG)  # 确保每个模型是独立的副本
+#    model.load_state_dict(torch.load(path))
+#    models.append(model)
 
 final_results = []
 
@@ -91,17 +104,32 @@ for i in range(1, 26):
     test_generator = DataLoader(test_dataset, batch_size=cfg.SOLVER.BATCH_SIZE, shuffle=False,
                                  num_workers=cfg.SOLVER.NUM_WORKERS, drop_last=False, collate_fn=graph_collate_func)
 
-    trainer = Trainer(modelG, opt, device, test_generator, **cfg)
-    pred = trainer.train()
+    # 对每个模型进行预测
+    
+    all_preds = pd.DataFrame()
+    i = 0
+    for model in model_paths:
+        modelG.load_state_dict(torch.load(model))
+        trainer = Trainer(modelG, opt, device, test_generator, **cfg)
+        pred = trainer.train()
+        print(f"no.{i}model predicting")
+        all_preds[f'pred{i}'] = pred
+        i = i+1
 
-    df_test['predicted_value'] = pred
+    # 对预测结果取平均
+    #avg_pred = sum(all_preds) / len(all_preds)
+    all_preds['row_average'] = all_preds.mean(axis=1)
+    
+    print(all_preds.head())
+
+    df_test['predicted_value'] = all_preds['row_average']
+
     df_result = df_test[['SMILES', 'Protein', 'predicted_value']]
-    #df_result.to_csv(f"{args.folder_path}/pred_result_{i}.csv", index=False)
     final_results.append(df_result)
 
+# 合并所有结果并筛选
 df_all = pd.concat(final_results, ignore_index=True)
 df_top100 = df_all[df_all['predicted_value'] > 0.5]
 df_top100.to_csv(args.save_dir, index=False)
 
 print(f"{args.trained_model_name} Top {args.top_number} results saved to {args.save_dir}")
-
